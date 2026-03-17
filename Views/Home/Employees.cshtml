@@ -1,0 +1,274 @@
+@{
+ViewData["Title"] = "Управление сотрудниками";
+}
+
+<div class="container mt-4">
+    <h2 class="mb-4">Управление сотрудниками</h2>
+
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <button class="btn btn-success" onclick="showCreateEmployeeModal()">
+                <i class="bi bi-plus"></i> Добавить сотрудника
+            </button>
+        </div>
+        <div class="col-md-4">
+            <input type="text" class="form-control" id="searchEmployees" placeholder="Поиск сотрудников..." oninput="filterEmployees()">
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>Фамилия</th>
+                <th>Имя</th>
+                <th>Отчество</th>
+                <th>Email</th>
+                <th>Действия</th>
+            </tr>
+            </thead>
+            <tbody id="employeesTableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="employeeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="employeeModalTitle">Добавление сотрудника</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="employeeForm">
+                    <input type="hidden" id="employeeId">
+
+                    <div class="mb-3">
+                        <label for="lastName" class="form-label">Фамилия</label>
+                        <input type="text" class="form-control" id="lastName" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="firstName" class="form-label">Имя</label>
+                        <input type="text" class="form-control" id="firstName" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="middleName" class="form-label">Отчество</label>
+                        <input type="text" class="form-control" id="middleName">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" onclick="saveEmployee()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let allEmployees = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadEmployees();
+    });
+
+    async function loadEmployees() {
+        try {
+            const response = await fetch('/api/employees');
+            allEmployees = await response.json();
+            console.log('Loaded employees:', allEmployees);
+            displayEmployees(allEmployees);
+        } catch (error) {
+            console.error('Error loading employees:', error);
+        }
+    }
+
+    function displayEmployees(employees) {
+        const tbody = document.getElementById('employeesTableBody');
+        tbody.innerHTML = '';
+
+        if (employees.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">Нет сотрудников</td></tr>';
+            return;
+        }
+
+        employees.forEach(emp => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${emp.lastName || ''}</td>
+                    <td>${emp.firstName || ''}</td>
+                    <td>${emp.middleName || '-'}</td>
+                    <td>${emp.email || ''}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editEmployee('${emp.id}')">Ред.</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteEmployee('${emp.id}')">Уд.</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function filterEmployees() {
+        const searchText = document.getElementById('searchEmployees').value.toLowerCase();
+        if (!searchText) {
+            displayEmployees(allEmployees);
+            return;
+        }
+
+        const filtered = allEmployees.filter(emp =>
+            (emp.firstName && emp.firstName.toLowerCase().includes(searchText)) ||
+            (emp.lastName && emp.lastName.toLowerCase().includes(searchText)) ||
+            (emp.middleName && emp.middleName.toLowerCase().includes(searchText)) ||
+            (emp.email && emp.email.toLowerCase().includes(searchText))
+        );
+        displayEmployees(filtered);
+    }
+
+    function showCreateEmployeeModal() {
+        document.getElementById('employeeModalTitle').textContent = 'Добавление сотрудника';
+        document.getElementById('employeeForm').reset();
+        document.getElementById('employeeId').value = '';
+        $('#employeeModal').modal('show');
+    }
+
+    async function editEmployee(id) {
+        try {
+            const response = await fetch(`/api/employees/${id}`);
+            if (!response.ok) {
+                throw new Error('Сотрудник не найден');
+            }
+            const employee = await response.json();
+            console.log('Editing employee:', employee);
+
+            document.getElementById('employeeModalTitle').textContent = 'Редактирование сотрудника';
+            document.getElementById('employeeId').value = employee.id;
+            document.getElementById('lastName').value = employee.lastName || '';
+            document.getElementById('firstName').value = employee.firstName || '';
+            document.getElementById('middleName').value = employee.middleName || '';
+            document.getElementById('email').value = employee.email || '';
+
+            $('#employeeModal').modal('show');
+        } catch (error) {
+            console.error('Error loading employee:', error);
+            alert('Ошибка при загрузке сотрудника');
+        }
+    }
+
+    async function saveEmployee() {
+        const lastName = document.getElementById('lastName').value.trim();
+        const firstName = document.getElementById('firstName').value.trim();
+        const email = document.getElementById('email').value.trim();
+
+        if (!lastName) {
+            alert('Пожалуйста, введите фамилию');
+            return;
+        }
+
+        if (!firstName) {
+            alert('Пожалуйста, введите имя');
+            return;
+        }
+
+        if (!email) {
+            alert('Пожалуйста, введите email');
+            return;
+        }
+
+        const employeeId = document.getElementById('employeeId').value;
+        const isEdit = !!employeeId;
+
+        const employeeData = {
+            lastName: lastName,
+            firstName: firstName,
+            middleName: document.getElementById('middleName').value.trim() || null,
+            email: email
+        };
+
+        console.log(`Saving employee (${isEdit ? 'edit' : 'create'}):`, employeeData);
+
+        try {
+            let response;
+            let url = '/api/employees';
+            let method = 'POST';
+
+            if (isEdit) {
+                url = `/api/employees/${employeeId}`;
+                method = 'PUT';
+            }
+
+            response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(employeeData)
+            });
+
+            if (!response.ok) {
+                let errorMessage = 'Ошибка при сохранении';
+                try {
+                    const errorData = await response.json();
+                    console.error('Server error:', errorData);
+                    errorMessage = errorData.error || errorData.title || errorData.message || `HTTP error ${response.status}`;
+                } catch {
+                    errorMessage = `HTTP error ${response.status}`;
+                }
+                throw new Error(errorMessage);
+            }
+            
+            const contentType = response.headers.get('content-type');
+
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    const responseData = await response.json();
+                    console.log('Response data:', responseData);
+                } catch (e) {
+                    console.log('No JSON data in response or empty response');
+                }
+            } else {
+                const text = await response.text();
+                console.log('Response text:', text);
+            }
+
+            $('#employeeModal').modal('hide');
+            await loadEmployees();
+            alert(isEdit ? 'Сотрудник успешно обновлен' : 'Сотрудник успешно добавлен');
+
+        } catch (error) {
+            console.error('Error saving employee:', error);
+            alert('Ошибка при сохранении сотрудника: ' + error.message);
+        }
+    }
+
+    async function deleteEmployee(id) {
+        if (!confirm('Вы уверены, что хотите удалить сотрудника?')) {
+            return;
+        }
+
+        try {
+            console.log('Deleting employee:', id);
+            const response = await fetch(`/api/employees/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error('Ошибка при удалении');
+            }
+
+            await loadEmployees();
+            alert('Сотрудник успешно удален');
+
+        } catch (error) {
+            console.error('Error deleting employee:', error);
+            alert('Ошибка при удалении сотрудника');
+        }
+    }
+</script>

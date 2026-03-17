@@ -1,0 +1,448 @@
+@{
+    ViewData["Title"] = "Управление проектами";
+}
+
+<div class="container mt-4">
+    <h2 class="mb-4">Управление проектами</h2>
+    
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <button class="btn btn-success" onclick="showCreateProjectModal()">
+                <i class="bi bi-plus"></i> Создать проект
+            </button>
+        </div>
+        <div class="col-md-4">
+            <input type="text" class="form-control" id="searchProjects" placeholder="Поиск проектов..." oninput="filterProjects()">
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5>Фильтры</h5>
+            <div class="row">
+                <div class="col-md-3">
+                    <label>Дата начала с</label>
+                    <input type="date" class="form-control" id="filterStartDateFrom">
+                </div>
+                <div class="col-md-3">
+                    <label>Дата начала по</label>
+                    <input type="date" class="form-control" id="filterStartDateTo">
+                </div>
+                <div class="col-md-3">
+                    <label>Приоритет</label>
+                    <input type="number" class="form-control" id="filterPriority" placeholder="Приоритет">
+                </div>
+                <div class="col-md-3">
+                    <label>Сортировка</label>
+                    <select class="form-control" id="filterSortBy">
+                        <option value="startDate">По дате начала</option>
+                        <option value="name">По названию</option>
+                        <option value="priority">По приоритету</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-12">
+                    <button class="btn btn-primary" onclick="applyFilters()">Применить</button>
+                    <button class="btn btn-secondary" onclick="resetFilters()">Сбросить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Заказчик</th>
+                    <th>Исполнитель</th>
+                    <th>Дата начала</th>
+                    <th>Дата окончания</th>
+                    <th>Приоритет</th>
+                    <th>Руководитель</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="projectsTableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="projectModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="projectModalTitle">Создание проекта</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="projectForm">
+                    <input type="hidden" id="projectId">
+                    
+                    <div class="mb-3">
+                        <label for="projectName" class="form-label">Название проекта</label>
+                        <input type="text" class="form-control" id="projectName" required>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="customerCompany" class="form-label">Компания-заказчик</label>
+                            <input type="text" class="form-control" id="customerCompany" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="executorCompany" class="form-label">Компания-исполнитель</label>
+                            <input type="text" class="form-control" id="executorCompany" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="startDate" class="form-label">Дата начала</label>
+                            <input type="date" class="form-control" id="startDate" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="endDate" class="form-label">Дата окончания</label>
+                            <input type="date" class="form-control" id="endDate" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="priority" class="form-label">Приоритет (1-10)</label>
+                        <input type="number" class="form-control" id="priority" min="1" max="10" value="5" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="projectManagerId" class="form-label">Руководитель проекта</label>
+                        <select class="form-control" id="projectManagerId" required>
+                            <option value="">Выберите руководителя</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Исполнители</label>
+                        <div id="executorsList" class="border p-3" style="max-height: 200px; overflow-y: auto;">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" onclick="saveProject()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let allProjects = [];
+    let employees = [];
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadEmployees();
+        loadProjects();
+    });
+    
+    async function loadEmployees() {
+        try {
+            const response = await fetch('/api/employees');
+            employees = await response.json();
+            console.log('Loaded employees:', employees);
+            
+            const managerSelect = document.getElementById('projectManagerId');
+            managerSelect.innerHTML = '<option value="">Выберите руководителя</option>';
+            
+            const executorsDiv = document.getElementById('executorsList');
+            executorsDiv.innerHTML = '';
+            
+            if (employees.length === 0) {
+                executorsDiv.innerHTML = '<p class="text-muted">Нет доступных сотрудников. Сначала создайте сотрудников.</p>';
+                managerSelect.innerHTML = '<option value="">Нет доступных руководителей</option>';
+                return;
+            }
+            
+            employees.forEach(emp => {
+                const fullName = `${emp.lastName} ${emp.firstName}${emp.middleName ? ' ' + emp.middleName : ''}`;
+                managerSelect.innerHTML += `<option value="${emp.id}">${fullName} (${emp.email})</option>`;
+                
+                executorsDiv.innerHTML += `
+                    <div class="form-check">
+                        <input class="form-check-input executor-checkbox" type="checkbox" value="${emp.id}" id="executor_${emp.id}">
+                        <label class="form-check-label" for="executor_${emp.id}">
+                            ${fullName} - ${emp.email}
+                        </label>
+                    </div>
+                `;
+            });
+        } catch (error) {
+            console.error('Error loading employees:', error);
+            alert('Ошибка при загрузке сотрудников');
+        }
+    }
+    
+    async function loadProjects() {
+        try {
+            const params = new URLSearchParams();
+            
+            const startFrom = document.getElementById('filterStartDateFrom')?.value;
+            const startTo = document.getElementById('filterStartDateTo')?.value;
+            const priority = document.getElementById('filterPriority')?.value;
+            const sortBy = document.getElementById('filterSortBy')?.value;
+            
+            if (startFrom) params.append('startDateFrom', startFrom);
+            if (startTo) params.append('startDateTo', startTo);
+            if (priority) params.append('priority', priority);
+            if (sortBy) params.append('sortBy', sortBy);
+            
+            const url = `/api/projects?${params.toString()}`;
+            console.log('Loading projects from:', url);
+            
+            const response = await fetch(url);
+            allProjects = await response.json();
+            console.log('Loaded projects:', allProjects);
+            
+            displayProjects(allProjects);
+        } catch (error) {
+            console.error('Error loading projects:', error);
+        }
+    }
+    
+    function displayProjects(projects) {
+        const tbody = document.getElementById('projectsTableBody');
+        tbody.innerHTML = '';
+        
+        if (projects.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Нет проектов</td></tr>';
+            return;
+        }
+        
+        projects.forEach(project => {
+            const manager = employees.find(e => e.id === project.projectManagerId);
+            const managerName = manager ? `${manager.lastName} ${manager.firstName}` : 'Не назначен';
+            
+            tbody.innerHTML += `
+                <tr>
+                    <td>${project.name || ''}</td>
+                    <td>${project.customerCompany || ''}</td>
+                    <td>${project.executorCompany || ''}</td>
+                    <td>${project.startDate ? new Date(project.startDate).toLocaleDateString() : ''}</td>
+                    <td>${project.endDate ? new Date(project.endDate).toLocaleDateString() : ''}</td>
+                    <td>${project.priority || ''}</td>
+                    <td>${managerName}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editProject('${project.id}')">Ред.</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteProject('${project.id}')">Уд.</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+    
+    function filterProjects() {
+        const searchText = document.getElementById('searchProjects').value.toLowerCase();
+        if (!searchText) {
+            displayProjects(allProjects);
+            return;
+        }
+        
+        const filtered = allProjects.filter(p => 
+            (p.name && p.name.toLowerCase().includes(searchText)) ||
+            (p.customerCompany && p.customerCompany.toLowerCase().includes(searchText)) ||
+            (p.executorCompany && p.executorCompany.toLowerCase().includes(searchText))
+        );
+        displayProjects(filtered);
+    }
+    
+    function applyFilters() {
+        loadProjects();
+    }
+    
+    function resetFilters() {
+        document.getElementById('filterStartDateFrom').value = '';
+        document.getElementById('filterStartDateTo').value = '';
+        document.getElementById('filterPriority').value = '';
+        document.getElementById('filterSortBy').value = 'startDate';
+        loadProjects();
+    }
+    
+    function showCreateProjectModal() {
+        document.getElementById('projectModalTitle').textContent = 'Создание проекта';
+        document.getElementById('projectForm').reset();
+        document.getElementById('projectId').value = '';
+        document.getElementById('priority').value = '5';
+        
+        document.querySelectorAll('.executor-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        
+        $('#projectModal').modal('show');
+    }
+    
+    async function editProject(id) {
+        try {
+            const response = await fetch(`/api/projects/${id}`);
+            if (!response.ok) {
+                throw new Error('Проект не найден');
+            }
+            const project = await response.json();
+            console.log('Editing project:', project);
+            
+            document.getElementById('projectModalTitle').textContent = 'Редактирование проекта';
+            document.getElementById('projectId').value = project.id;
+            document.getElementById('projectName').value = project.name || '';
+            document.getElementById('customerCompany').value = project.customerCompany || '';
+            document.getElementById('executorCompany').value = project.executorCompany || '';
+            document.getElementById('startDate').value = project.startDate ? project.startDate.split('T')[0] : '';
+            document.getElementById('endDate').value = project.endDate ? project.endDate.split('T')[0] : '';
+            document.getElementById('priority').value = project.priority || 5;
+            document.getElementById('projectManagerId').value = project.projectManagerId || '';
+
+            
+            $('#projectModal').modal('show');
+        } catch (error) {
+            console.error('Error loading project:', error);
+            alert('Ошибка при загрузке проекта');
+        }
+    }
+    
+    async function saveProject() {
+        const name = document.getElementById('projectName').value.trim();
+        const customerCompany = document.getElementById('customerCompany').value.trim();
+        const executorCompany = document.getElementById('executorCompany').value.trim();
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const managerId = document.getElementById('projectManagerId').value;
+        
+        if (!name) {
+            alert('Пожалуйста, введите название проекта');
+            return;
+        }
+        
+        if (!customerCompany) {
+            alert('Пожалуйста, введите компанию-заказчика');
+            return;
+        }
+        
+        if (!executorCompany) {
+            alert('Пожалуйста, введите компанию-исполнителя');
+            return;
+        }
+        
+        if (!startDate) {
+            alert('Пожалуйста, выберите дату начала');
+            return;
+        }
+        
+        if (!endDate) {
+            alert('Пожалуйста, выберите дату окончания');
+            return;
+        }
+        
+        if (!managerId) {
+            alert('Пожалуйста, выберите руководителя проекта');
+            return;
+        }
+        
+        const projectId = document.getElementById('projectId').value;
+        const isEdit = !!projectId;
+        
+        const projectData = {
+            name: name,
+            customerCompany: customerCompany,
+            executorCompany: executorCompany,
+            startDate: startDate,
+            endDate: endDate,
+            priority: parseInt(document.getElementById('priority').value),
+            projectManagerId: managerId
+        };
+        
+        const selectedExecutors = [];
+        document.querySelectorAll('.executor-checkbox:checked').forEach(cb => {
+            selectedExecutors.push(cb.value);
+        });
+        
+        if (selectedExecutors.length > 0) {
+            projectData.employeeIds = selectedExecutors;
+        }
+        
+        console.log(`Saving project (${isEdit ? 'edit' : 'create'}):`, projectData);
+        
+        try {
+            let response;
+            let url = '/api/projects';
+            let method = 'POST';
+            
+            if (isEdit) {
+                url = `/api/projects/${projectId}`;
+                method = 'PUT';
+            }
+            
+            response = await fetch(url, {
+                method: method,
+                headers: { 
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(projectData)
+            });
+            
+            if (!response.ok) {
+                let errorMessage = 'Ошибка при сохранении';
+                try {
+                    const errorData = await response.json();
+                    console.error('Server error:', errorData);
+                    errorMessage = errorData.error || errorData.title || errorData.message || `HTTP error ${response.status}`;
+                } catch {
+                    errorMessage = `HTTP error ${response.status}`;
+                }
+                throw new Error(errorMessage);
+            }
+            
+            const contentType = response.headers.get('content-type');
+            
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    const responseData = await response.json();
+                    console.log('Response data:', responseData);
+                } catch (e) {
+                    console.log('No JSON data in response or empty response');
+                }
+            } else {
+                const text = await response.text();
+                console.log('Response text:', text);
+            }
+            
+            $('#projectModal').modal('hide');
+            await loadProjects();
+            alert(isEdit ? 'Проект успешно обновлен' : 'Проект успешно создан');
+            
+        } catch (error) {
+            console.error('Error saving project:', error);
+            alert('Ошибка при сохранении проекта: ' + error.message);
+        }
+    }
+    
+    async function deleteProject(id) {
+        if (!confirm('Вы уверены, что хотите удалить проект?')) {
+            return;
+        }
+        
+        try {
+            console.log('Deleting project:', id);
+            const response = await fetch(`/api/projects/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Ошибка при удалении');
+            }
+            
+            await loadProjects();
+            alert('Проект успешно удален');
+            
+        } catch (error) {
+            console.error('Error deleting project:', error);
+            alert('Ошибка при удалении проекта');
+        }
+    }
+</script>

@@ -1,0 +1,476 @@
+@{
+ViewData["Title"] = "Управление задачами";
+}
+
+<div class="container mt-4">
+    <h2 class="mb-4">Управление задачами</h2>
+
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <button class="btn btn-success" onclick="showCreateTaskModal()">
+                <i class="bi bi-plus"></i> Создать задачу
+            </button>
+        </div>
+        <div class="col-md-4">
+            <input type="text" class="form-control" id="searchTasks" placeholder="Поиск задач..." oninput="filterTasks()">
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5>Фильтры</h5>
+            <div class="row">
+                <div class="col-md-3">
+                    <label>Статус</label>
+                    <select class="form-control" id="filterStatus">
+                        <option value="">Все</option>
+                        <option value="0">ToDo</option>
+                        <option value="1">InProgress</option>
+                        <option value="2">Done</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label>Исполнитель</label>
+                    <select class="form-control" id="filterExecutor">
+                        <option value="">Все</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label>Проект</label>
+                    <select class="form-control" id="filterProject">
+                        <option value="">Все</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label>Сортировка</label>
+                    <select class="form-control" id="filterSortBy">
+                        <option value="title">По названию</option>
+                        <option value="priority">По приоритету</option>
+                        <option value="status">По статусу</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-12">
+                    <button class="btn btn-primary" onclick="applyFilters()">Применить</button>
+                    <button class="btn btn-secondary" onclick="resetFilters()">Сбросить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>Название</th>
+                <th>Проект</th>
+                <th>Автор</th>
+                <th>Исполнитель</th>
+                <th>Статус</th>
+                <th>Приоритет</th>
+                <th>Комментарий</th>
+                <th>Действия</th>
+            </tr>
+            </thead>
+            <tbody id="tasksTableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="taskModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="taskModalTitle">Создание задачи</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="taskForm">
+                    <input type="hidden" id="taskId">
+                    <input type="hidden" id="originalAuthorId">
+                    <input type="hidden" id="originalProjectId">
+
+                    <div class="mb-3">
+                        <label for="taskTitle" class="form-label">Название задачи</label>
+                        <input type="text" class="form-control" id="taskTitle" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="taskProject" class="form-label">Проект</label>
+                        <select class="form-control" id="taskProject" required>
+                            <option value="">Выберите проект</option>
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="taskAuthor" class="form-label">Автор</label>
+                            <select class="form-control" id="taskAuthor" required>
+                                <option value="">Выберите автора</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="taskExecutor" class="form-label">Исполнитель</label>
+                            <select class="form-control" id="taskExecutor">
+                                <option value="">Не назначен</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="taskStatus" class="form-label">Статус</label>
+                            <select class="form-control" id="taskStatus" required>
+                                <option value="0">ToDo</option>
+                                <option value="1">InProgress</option>
+                                <option value="2">Done</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="taskPriority" class="form-label">Приоритет (1-10)</label>
+                            <input type="number" class="form-control" id="taskPriority" min="1" max="10" value="5" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="taskComment" class="form-label">Комментарий</label>
+                        <textarea class="form-control" id="taskComment" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" onclick="saveTask()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let allTasks = [];
+    let employees = [];
+    let projects = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadEmployees();
+        loadProjects();
+        loadTasks();
+    });
+
+    async function loadEmployees() {
+        try {
+            const response = await fetch('/api/employees');
+            employees = await response.json();
+            console.log('Loaded employees:', employees);
+            
+            const authorSelect = document.getElementById('taskAuthor');
+            const executorSelect = document.getElementById('taskExecutor');
+            const filterExecutor = document.getElementById('filterExecutor');
+
+            authorSelect.innerHTML = '<option value="">Выберите автора</option>';
+            executorSelect.innerHTML = '<option value="">Не назначен</option>';
+            filterExecutor.innerHTML = '<option value="">Все</option>';
+
+            if (employees.length === 0) {
+                authorSelect.innerHTML = '<option value="">Нет доступных сотрудников</option>';
+                return;
+            }
+
+            employees.forEach(emp => {
+                const fullName = `${emp.lastName} ${emp.firstName}${emp.middleName ? ' ' + emp.middleName : ''}`;
+                const option = `<option value="${emp.id}">${fullName} (${emp.email})</option>`;
+                authorSelect.innerHTML += option;
+                executorSelect.innerHTML += option;
+                filterExecutor.innerHTML += option;
+            });
+        } catch (error) {
+            console.error('Error loading employees:', error);
+            alert('Ошибка при загрузке сотрудников');
+        }
+    }
+
+    async function loadProjects() {
+        try {
+            const response = await fetch('/api/projects');
+            projects = await response.json();
+            console.log('Loaded projects:', projects);
+
+            const projectSelect = document.getElementById('taskProject');
+            const filterProject = document.getElementById('filterProject');
+
+            projectSelect.innerHTML = '<option value="">Выберите проект</option>';
+            filterProject.innerHTML = '<option value="">Все</option>';
+
+            if (projects.length === 0) {
+                projectSelect.innerHTML = '<option value="">Нет доступных проектов</option>';
+                return;
+            }
+
+            projects.forEach(proj => {
+                projectSelect.innerHTML += `<option value="${proj.id}">${proj.name}</option>`;
+                filterProject.innerHTML += `<option value="${proj.id}">${proj.name}</option>`;
+            });
+        } catch (error) {
+            console.error('Error loading projects:', error);
+            alert('Ошибка при загрузке проектов');
+        }
+    }
+
+    async function loadTasks() {
+        try {
+            const params = new URLSearchParams();
+
+            const status = document.getElementById('filterStatus').value;
+            const executorId = document.getElementById('filterExecutor').value;
+            const projectId = document.getElementById('filterProject').value;
+            const sortBy = document.getElementById('filterSortBy').value;
+
+            if (status) params.append('status', status);
+            if (executorId) params.append('executorId', executorId);
+            if (projectId) params.append('projectId', projectId);
+            if (sortBy) params.append('sortBy', sortBy);
+
+            const url = `/api/tasks?${params.toString()}`;
+            console.log('Loading tasks from:', url);
+
+            const response = await fetch(url);
+            allTasks = await response.json();
+            console.log('Loaded tasks:', allTasks);
+
+            displayTasks(allTasks);
+        } catch (error) {
+            console.error('Error loading tasks:', error);
+        }
+    }
+
+    function displayTasks(tasks) {
+        const tbody = document.getElementById('tasksTableBody');
+        tbody.innerHTML = '';
+
+        if (tasks.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Нет задач</td></tr>';
+            return;
+        }
+
+        tasks.forEach(task => {
+            const project = projects.find(p => p.id === task.projectId);
+            const author = employees.find(e => e.id === task.authorId);
+            const executor = employees.find(e => e.id === task.executorId);
+
+            const statusText = task.status === 0 ? 'ToDo' : task.status === 1 ? 'InProgress' : 'Done';
+            const statusClass = task.status === 0 ? 'secondary' : task.status === 1 ? 'warning' : 'success';
+
+            const authorName = author ? `${author.lastName} ${author.firstName}` : 'Не указан';
+            const executorName = executor ? `${executor.lastName} ${executor.firstName}` : 'Не назначен';
+            const projectName = project ? project.name : 'Не указан';
+
+            tbody.innerHTML += `
+                <tr>
+                    <td>${task.title || ''}</td>
+                    <td>${projectName}</td>
+                    <td>${authorName}</td>
+                    <td>${executorName}</td>
+                    <td><span class="badge bg-${statusClass}">${statusText}</span></td>
+                    <td>${task.priority || ''}</td>
+                    <td>${task.comment || '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editTask('${task.id}')">Ред.</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteTask('${task.id}')">Уд.</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function filterTasks() {
+        const searchText = document.getElementById('searchTasks').value.toLowerCase();
+        if (!searchText) {
+            displayTasks(allTasks);
+            return;
+        }
+
+        const filtered = allTasks.filter(t =>
+            (t.title && t.title.toLowerCase().includes(searchText)) ||
+            (t.comment && t.comment.toLowerCase().includes(searchText))
+        );
+        displayTasks(filtered);
+    }
+
+    function applyFilters() {
+        loadTasks();
+    }
+
+    function resetFilters() {
+        document.getElementById('filterStatus').value = '';
+        document.getElementById('filterExecutor').value = '';
+        document.getElementById('filterProject').value = '';
+        document.getElementById('filterSortBy').value = 'title';
+        loadTasks();
+    }
+
+    function showCreateTaskModal() {
+        document.getElementById('taskModalTitle').textContent = 'Создание задачи';
+        document.getElementById('taskForm').reset();
+        document.getElementById('taskId').value = '';
+        document.getElementById('taskPriority').value = '5';
+        document.getElementById('originalAuthorId').value = '';
+        document.getElementById('originalProjectId').value = '';
+        $('#taskModal').modal('show');
+    }
+
+    async function editTask(id) {
+        try {
+            const response = await fetch(`/api/tasks/${id}`);
+            if (!response.ok) {
+                throw new Error('Задача не найдена');
+            }
+            const task = await response.json();
+            console.log('Editing task:', task);
+
+            document.getElementById('taskModalTitle').textContent = 'Редактирование задачи';
+            document.getElementById('taskId').value = task.id;
+            document.getElementById('taskTitle').value = task.title || '';
+            document.getElementById('taskProject').value = task.projectId || '';
+            document.getElementById('taskAuthor').value = task.authorId || '';
+            document.getElementById('taskExecutor').value = task.executorId || '';
+            document.getElementById('taskStatus').value = task.status || 0;
+            document.getElementById('taskPriority').value = task.priority || 5;
+            document.getElementById('taskComment').value = task.comment || '';
+            
+            document.getElementById('originalAuthorId').value = task.authorId || '';
+            document.getElementById('originalProjectId').value = task.projectId || '';
+
+            $('#taskModal').modal('show');
+        } catch (error) {
+            console.error('Error loading task:', error);
+            alert('Ошибка при загрузке задачи');
+        }
+    }
+
+    async function saveTask() {
+        const title = document.getElementById('taskTitle').value.trim();
+        const projectId = document.getElementById('taskProject').value;
+        const authorId = document.getElementById('taskAuthor').value;
+
+        if (!title) {
+            alert('Пожалуйста, введите название задачи');
+            return;
+        }
+
+        if (!projectId) {
+            alert('Пожалуйста, выберите проект');
+            return;
+        }
+
+        if (!authorId) {
+            alert('Пожалуйста, выберите автора');
+            return;
+        }
+
+        const taskId = document.getElementById('taskId').value;
+        const isEdit = !!taskId;
+        
+        let taskData;
+
+        if (isEdit) {
+            taskData = {
+                title: title,
+                comment: document.getElementById('taskComment').value || null,
+                priority: parseInt(document.getElementById('taskPriority').value),
+                status: parseInt(document.getElementById('taskStatus').value),
+                executorId: document.getElementById('taskExecutor').value || null
+            };
+        } else {
+            taskData = {
+                title: title,
+                projectId: projectId,
+                authorId: authorId,
+                executorId: document.getElementById('taskExecutor').value || null,
+                status: parseInt(document.getElementById('taskStatus').value),
+                priority: parseInt(document.getElementById('taskPriority').value),
+                comment: document.getElementById('taskComment').value || null
+            };
+        }
+
+        console.log(`Saving task (${isEdit ? 'edit' : 'create'}):`, taskData);
+
+        try {
+            let response;
+            let url = '/api/tasks';
+            let method = 'POST';
+
+            if (isEdit) {
+                url = `/api/tasks/${taskId}`;
+                method = 'PUT';
+            }
+
+            response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(taskData)
+            });
+
+            if (!response.ok) {
+                let errorMessage = 'Ошибка при сохранении';
+                try {
+                    const errorData = await response.json();
+                    console.error('Server error:', errorData);
+                    errorMessage = errorData.error || errorData.title || errorData.message || `HTTP error ${response.status}`;
+                } catch {
+                    errorMessage = `HTTP error ${response.status}`;
+                }
+                throw new Error(errorMessage);
+            }
+            
+            const contentType = response.headers.get('content-type');
+            let responseData = null;
+
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    responseData = await response.json();
+                    console.log('Response data:', responseData);
+                } catch (e) {
+                    console.log('No JSON data in response or empty response');
+                }
+            } else {
+                const text = await response.text();
+                console.log('Response text:', text);
+            }
+
+            $('#taskModal').modal('hide');
+            alert(isEdit ? 'Задача успешно обновлена' : 'Задача успешно создана');
+
+        } catch (error) {
+            console.error('Error saving task:', error);
+            alert('Ошибка при сохранении задачи: ' + error.message);
+        }
+    }
+
+    async function deleteTask(id) {
+        if (!confirm('Вы уверены, что хотите удалить задачу?')) {
+            return;
+        }
+
+        try {
+            console.log('Deleting task:', id);
+            const response = await fetch(`/api/tasks/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error('Ошибка при удалении');
+            }
+
+            await loadTasks();
+            alert('Задача успешно удалена');
+
+        } catch (error) {
+            console.error('Error deleting task:', error);
+            alert('Ошибка при удалении задачи');
+        }
+    }
+</script>

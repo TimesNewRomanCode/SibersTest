@@ -1,0 +1,33 @@
+﻿services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: project-manager-db
+    environment:
+      SA_PASSWORD: "Password1@"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    networks:
+      - backend
+
+  api:
+    build: .
+    container_name: project-manager-api
+    depends_on:
+      - mssql
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Server=mssql;Database=ProjectDb;User Id=sa;Password=Password1@;TrustServerCertificate=True;
+    ports:
+      - "5000:8080"
+    networks:
+      - backend
+
+networks:
+  backend:
+
+volumes:
+  mssql_data:

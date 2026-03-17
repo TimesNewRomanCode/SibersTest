@@ -1,0 +1,44 @@
+﻿@{
+    ViewData["Title"] = "Управление проектами";
+}
+
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2 class="fw-normal">Система управления проектами</h2>
+            <hr>
+        </div>
+    </div>
+    
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Проекты</h5>
+                    <p class="card-text text-secondary">Создание, просмотр и редактирование проектов</p>
+                    <a href="/Home/Projects" class="btn btn-sm btn-outline-primary">Открыть</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Сотрудники</h5>
+                    <p class="card-text text-secondary">Управление сотрудниками компании</p>
+                    <a href="/Home/Employees" class="btn btn-sm btn-outline-primary">Открыть</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Задачи</h5>
+                    <p class="card-text text-secondary">Управление задачами проектов</p>
+                    <a href="/Home/Tasks" class="btn btn-sm btn-outline-primary">Открыть</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
