@@ -2,7 +2,7 @@
 
 ## Образец
 
-### API (Swagger)
+### API 
 
 ![Главная](./images/main_1.png)
 ![Главная](./images/main_2.png)
